@@ -1,0 +1,36 @@
+{
+  "training_version": 21.06,
+  "validation_version": 23.06,
+  "test_version": 24.06,
+  "as_dataset": "associationByOverallDirect",
+  "disease_similarity_network": false,
+  "molecule_similarity_network": false,
+  "reactome_network": false,
+  "trial_edges": false,
+  "negative_sampling_approach": "random",
+  "general_path": "data/raw/",
+  "results_path": "results/",
+  "dict_path": "results/mappings/",
+  "model_config": {
+    "learning_rate": 0.0005,
+    "hidden_channels": 16,
+    "out_channels": 16,
+    "num_layers": 2,
+    "dropout_rate": 0.5,
+    "num_epochs": 1000,
+    "patience": 10,
+    "batch_size": 1000
+  },
+  "feature_config": {
+    "use_word_embeddings": false,
+    "embedding_model": "dmis-lab/biobert-base-cased-v1.2",
+    "max_sequence_length": 512,
+    "pad_size": 9
+  },
+  "evaluation_config": {
+    "test_size": 1000,
+    "metrics_to_plot": ["auc", "apr", "f1", "accuracy", "precision", "recall", "specificity"],
+    "create_interactive_plots": true,
+    "save_predictions": true
+  }
+}
