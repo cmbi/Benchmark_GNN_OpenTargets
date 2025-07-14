@@ -48,7 +48,8 @@ Visit the OpenTargets downloads page to access the data: https://platform.openta
 1. **Host**: `ftp.ebi.ac.uk`
 2. **Remote site**: `/pub/databases/opentargets/platform/`
 3. **Navigate** to the version folders: `21.06`, `23.06`, or `24.06`
-4. **Download** the required datasets from each version
+4. **Go to**: `output/etl/parquet/` within each version
+5. **Download** the required datasets from each version
 
 #### Command Line Download
 ```bash
@@ -57,51 +58,52 @@ mkdir -p data/raw/{21.06,23.06,24.06}
 
 # Download using wget (example for 21.06)
 cd data/raw/21.06
-wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/drug_indication/
-wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/molecule/
-wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/diseases/
-wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/targets/
-wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/associationByOverallDirect/
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/indication/
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/molecule/
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/disease/
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/target/
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/associationByOverallDirect/
 
-# Repeat for versions 23.06 and 24.06 (only drug_indication needed for these)
+# Repeat for versions 23.06 and 24.06 (only indication needed for these)
 ```
 
 ### Required Data by Version
 
 #### Training Version (21.06):
-From `/pub/databases/opentargets/platform/21.06/output/`:
-- `drug_indication/` → rename to `indication/`
+From `/pub/databases/opentargets/platform/21.06/output/etl/parquet/`:
+- `indication/`
 - `molecule/`
-- `diseases/`
-- `targets/`
+- `disease/` → rename to `diseases/`
+- `target/` → rename to `targets/`
 - `associationByOverallDirect/`
 
 #### Validation Version (23.06):
-From `/pub/databases/opentargets/platform/23.06/output/`:
-- `drug_indication/` → rename to `indication/`
+From `/pub/databases/opentargets/platform/23.06/output/etl/parquet/`:
+- `indication/`
 
 #### Test Version (24.06):
-From `/pub/databases/opentargets/platform/24.06/output/`:
-- `drug_indication/` → rename to `indication/`
+From `/pub/databases/opentargets/platform/24.06/output/etl/parquet/`:
+- `indication/`
 
 ### Final Directory Structure:
 ```
 data/raw/
 ├── 21.06/
-│   ├── indication/           # renamed from drug_indication
+│   ├── indication/           
 │   ├── molecule/            
-│   ├── diseases/            
-│   ├── targets/             
+│   ├── diseases/            # renamed from disease
+│   ├── targets/             # renamed from target
 │   └── associationByOverallDirect/
 ├── 23.06/
-│   └── indication/          # renamed from drug_indication
+│   └── indication/          
 └── 24.06/
-    └── indication/          # renamed from drug_indication
+    └── indication/          
 ```
 
 **Important Notes:**
 - All files are in PARQUET format
-- Rename `drug_indication` folders to `indication` after download
+- The actual FTP path includes `/output/etl/parquet/` before the dataset names
+- Rename `disease` to `diseases` and `target` to `targets` after download
 - Large datasets may require significant download time and storage space
 - Check OpenTargets license terms before using the data
 
