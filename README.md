@@ -109,55 +109,76 @@ data/raw/
 - Large datasets may require significant download time and storage space
 - Check OpenTargets license terms before using the data
 
-### Option 2: Use Pre-processed Data (Quick Start)
+### Option 2: Generate Pre-processed Data (Quick Start)
 
-For a faster setup, you can use pre-processed data files that are ready for training:
+For a faster setup, you can generate pre-processed data files using the included processing script:
 
-#### Download Pre-processed Data
-1. **Download the pre-processed dataset** from: [Add your download link here]
-2. **Extract** the files to your project directory
-3. **Create the directory structure**:
+#### Generate Pre-processed Data
+1. **First, download only the required raw data** (smaller subset than Option 1):
 
 ```bash
-mkdir -p data/processed
+# Create directory structure
+mkdir -p data/raw/{21.06,23.06,24.06}
+
+# Download only the essential datasets for 21.06
+cd data/raw/21.06
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/indication/
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/molecule/
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/disease/
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/target/
+wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/associationByOverallDirect/
+
+# Rename directories as required
+mv disease diseases
+mv target targets
 ```
 
-#### Required Pre-processed Files
-Extract the downloaded files to create this structure:
-```
-data/processed/
-├── drug_disease_graph_train.pt     # Training graph
-├── drug_disease_graph_val.pt       # Validation graph  
-├── drug_disease_graph_test.pt      # Test graph
-├── node_mappings.json              # Node ID mappings
-├── edge_mappings.json              # Edge type mappings
-└── dataset_info.json               # Dataset statistics
-```
-
-#### What's Included
-- **Pre-built graph objects** for training, validation, and testing
-- **Node features** extracted from OpenTargets data
-- **Edge relationships** between drugs and diseases
-- **Negative sampling** already applied
-- **Feature normalization** completed
-- **Train/validation/test splits** prepared
-
-#### Quick Start with Pre-processed Data
-Once you have the pre-processed files in place:
+2. **Run the data processing script**:
 
 ```bash
-# Skip graph creation and go directly to training
-python 2_training_validation.py data/processed/drug_disease_graph_train.pt results/
-
-# Then evaluate the trained models
-python 3_testing_evaluation.py data/processed/drug_disease_graph_test.pt results/models_info.json results/
+# Run the preprocessing script to generate processed data
+python data_processing_module.py
 ```
 
-**Benefits of Pre-processed Data:**
-- ✅ **No large downloads** - Skip downloading GBs of raw data
-- ✅ **Faster setup** - Ready to train in minutes
-- ✅ **Consistent preprocessing** - Standardized feature extraction
-- ✅ **Skip graph creation** - Pre-built graph objects included
+#### Generated Pre-processed Files
+The script will create this structure:
+```
+data/processed/  (or your configured processed_path)
+├── tables/
+│   ├── processed_molecules.csv     # Filtered drug molecules
+│   ├── processed_indications.csv   # Drug-disease indications
+│   ├── processed_diseases.csv      # Filtered diseases
+│   ├── processed_genes.csv         # Target genes
+│   └── processed_associations.csv  # Gene-disease associations
+├── mappings/
+│   ├── drug_key_mapping.json       # Drug ID to node index
+│   ├── drug_type_key_mapping.json  # Drug type mappings
+│   ├── gene_key_mapping.json       # Gene ID mappings
+│   ├── reactome_key_mapping.json   # Pathway mappings
+│   ├── disease_key_mapping.json    # Disease ID mappings
+│   ├── therapeutic_area_key_mapping.json # Therapeutic area mappings
+│   └── mapping_summary.json        # Node count summary
+└── edges/
+    ├── 1_molecule_drugType_edges.pt   # Drug-DrugType edges
+    ├── 2_molecule_disease_edges.pt    # Drug-Disease edges  
+    ├── 3_molecule_gene_edges.pt       # Drug-Gene edges
+    ├── 4_gene_reactome_edges.pt       # Gene-Pathway edges
+    ├── 5_disease_therapeutic_edges.pt # Disease-TherapeuticArea edges
+    ├── 6_disease_gene_edges.pt        # Disease-Gene edges
+    ├── edge_statistics.json           # Edge count summary
+    └── training_drug_disease_pairs.csv # Training pairs with names
+```
+
+#### Quick Start with Generated Data
+Once the processing script completes:
+
+```bash
+# The processed data is ready for graph creation
+python 1_graph_creation.py
+
+# Or run the complete pipeline
+python run_pipeline.py
+```
 
 ## Usage
 
