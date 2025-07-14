@@ -49,39 +49,27 @@ def get_config():
         'validation_version': 23.06,
         'test_version': 24.06,
         'as_dataset': 'associationByOverallDirect',
-        'disease_similarity_network': False,
-        'molecule_similarity_network': False,
-        'reactome_network': False,
-        'trial_edges': False,
-        'negative_sampling_approach': 'random'
+        'negative_sampling_approach': 'random',
+        'general_path': 'data/raw/',
+        'processed_path': 'data/processed/',
+        'results_path': 'results/'
     }
     
-    # Platform-specific paths
-    if platform.system() == "Windows":
-        config.update({
-            'general_path': r"C:\\OpenTargets_datasets\\downloads\\",
-            'results_path': r"C:\\OpenTargets_datasets\\test_results3\\",
-            'dict_path': r"C:\\OpenTargets_datasets\\test_results_biosb\\",
-            'processed_path': r"C:\\OpenTargets_datasets\\test_results\\"
-        })
-    else:
-        config.update({
-            'general_path': "OT/",
-            'results_path': "test_results/",
-            'dict_path': "test_results_biosb/",
-            'processed_path': "data/processed/"
-        })
+    # Create proper directory paths
+    os.makedirs(config['general_path'], exist_ok=True)
+    os.makedirs(config['processed_path'], exist_ok=True)
+    os.makedirs(config['results_path'], exist_ok=True)
     
-    # Set specific paths for raw data
+    # Set specific paths for raw data (using forward slashes for cross-platform compatibility)
     config.update({
-        'indication_path': f"{config['general_path']}{config['training_version']}\\indication",
-        'val_indication_path': f"{config['general_path']}{config['validation_version']}\\indication",
-        'test_indication_path': f"{config['general_path']}{config['test_version']}\\indication",
-        'molecule_path': f"{config['general_path']}{config['training_version']}\\molecule",
-        'disease_path': f"{config['general_path']}{config['training_version']}\\diseases",
-        'val_disease_path': f"{config['general_path']}{config['validation_version']}\\diseases",
-        'test_disease_path': f"{config['general_path']}{config['test_version']}\\diseases",
-        'gene_path': f"{config['general_path']}{config['training_version']}\\targets",
+        'indication_path': f"{config['general_path']}{config['training_version']}/indication",
+        'val_indication_path': f"{config['general_path']}{config['validation_version']}/indication",
+        'test_indication_path': f"{config['general_path']}{config['test_version']}/indication",
+        'molecule_path': f"{config['general_path']}{config['training_version']}/molecule",
+        'disease_path': f"{config['general_path']}{config['training_version']}/diseases",
+        'val_disease_path': f"{config['general_path']}{config['validation_version']}/diseases",
+        'test_disease_path': f"{config['general_path']}{config['test_version']}/diseases",
+        'gene_path': f"{config['general_path']}{config['training_version']}/targets",
         'associations_path': f"{config['general_path']}{config['training_version']}/{config['as_dataset']}"
     })
     
@@ -91,31 +79,53 @@ def detect_data_mode(config):
     """Detect whether to use raw data or pre-processed data."""
     processed_path = config['processed_path']
     
-    # Check if pre-processed data exists
+    # Check if pre-processed data exists (Option 2)
     processed_files_exist = (
         os.path.exists(f"{processed_path}tables/processed_molecules.csv") and
         os.path.exists(f"{processed_path}mappings/drug_key_mapping.json") and
         os.path.exists(f"{processed_path}edges/1_molecule_drugType_edges.pt")
     )
     
-    # Check if raw data exists
+    # Check if raw data exists (Option 1)  
     raw_files_exist = (
         os.path.exists(config['indication_path']) and
         os.path.exists(config['molecule_path']) and
-        os.path.exists(config['disease_path'])
+        os.path.exists(config['disease_path']) and
+        os.path.exists(config['gene_path']) and
+        os.path.exists(config['associations_path'])
     )
     
     if processed_files_exist:
-        print("✅ Pre-processed data detected - using Option 2 workflow")
+        print("Pre-processed data detected - using Option 2 workflow (Quick Start)")
+        print(f"Using pre-processed data from: {processed_path}")
         return "processed"
     elif raw_files_exist:
-        print("✅ Raw data detected - using Option 1 workflow")
+        print("Raw OpenTargets data detected - using Option 1 workflow (Complete Setup)")
+        print(f"Using raw data from: {config['general_path']}")
         return "raw"
     else:
+        print("ERROR: No valid data found!")
+        print("\nPlease ensure you have either:")
+        print(f"Option 1: Raw OpenTargets data in '{config['general_path']}'")
+        print("   Required structure:")
+        print("   ├── 21.06/")
+        print("   │   ├── indication/")
+        print("   │   ├── molecule/")
+        print("   │   ├── diseases/")
+        print("   │   ├── targets/")
+        print("   │   └── associationByOverallDirect/")
+        print("   ├── 23.06/indication/")
+        print("   └── 24.06/indication/")
+        print(f"\nOption 2: Pre-processed data in '{processed_path}'")
+        print("   Required structure:")
+        print("   ├── tables/processed_molecules.csv")
+        print("   ├── mappings/drug_key_mapping.json")
+        print("   └── edges/1_molecule_drugType_edges.pt")
+        print("\nRefer to the README for detailed setup instructions.")
+        
         raise FileNotFoundError(
-            "Neither pre-processed nor raw data found. Please ensure you have either:\n"
-            "- Pre-processed data in the processed_path, or\n"
-            "- Raw OpenTargets data in the general_path"
+            "Neither pre-processed nor raw data found. "
+            "Please follow the README instructions for data preparation."
         )
 
 # Utility Functions
@@ -252,99 +262,134 @@ class GraphBuilder:
             self.load_and_preprocess_raw_data()
     
     def load_preprocessed_data(self):
-        """Load pre-processed data from files."""
-        print("Loading pre-processed data...")
+        """Load pre-processed data from files (Option 2)."""
+        print("Loading pre-processed data files...")
         
         processed_path = self.config['processed_path']
         
-        # Load processed tables
-        self.filtered_molecule_df = pd.read_csv(f"{processed_path}tables/processed_molecules.csv")
-        self.filtered_indication_df = pd.read_csv(f"{processed_path}tables/processed_indications.csv")
-        self.filtered_disease_df = pd.read_csv(f"{processed_path}tables/processed_diseases.csv")
-        self.filtered_gene_df = pd.read_csv(f"{processed_path}tables/processed_genes.csv")
-        self.filtered_associations_df = pd.read_csv(f"{processed_path}tables/processed_associations.csv")
-        
-        # Load mappings
-        with open(f"{processed_path}mappings/drug_key_mapping.json", 'r') as f:
-            self.drug_key_mapping = json.load(f)
-        with open(f"{processed_path}mappings/drug_type_key_mapping.json", 'r') as f:
-            self.drug_type_key_mapping = json.load(f)
-        with open(f"{processed_path}mappings/gene_key_mapping.json", 'r') as f:
-            self.gene_key_mapping = json.load(f)
-        with open(f"{processed_path}mappings/reactome_key_mapping.json", 'r') as f:
-            self.reactome_key_mapping = json.load(f)
-        with open(f"{processed_path}mappings/disease_key_mapping.json", 'r') as f:
-            self.disease_key_mapping = json.load(f)
-        with open(f"{processed_path}mappings/therapeutic_area_key_mapping.json", 'r') as f:
-            self.therapeutic_area_key_mapping = json.load(f)
-        
-        # Load edge tensors
-        self.molecule_drugType_edges = torch.load(f"{processed_path}edges/1_molecule_drugType_edges.pt")
-        self.molecule_disease_edges = torch.load(f"{processed_path}edges/2_molecule_disease_edges.pt")
-        self.molecule_gene_edges = torch.load(f"{processed_path}edges/3_molecule_gene_edges.pt")
-        self.gene_reactome_edges = torch.load(f"{processed_path}edges/4_gene_reactome_edges.pt")
-        self.disease_therapeutic_edges = torch.load(f"{processed_path}edges/5_disease_therapeutic_edges.pt")
-        self.disease_gene_edges = torch.load(f"{processed_path}edges/6_disease_gene_edges.pt")
-        
-        # Create node lists from mappings
-        self.approved_drugs_list = list(self.drug_key_mapping.keys())
-        self.drug_type_list = list(self.drug_type_key_mapping.keys())
-        self.gene_list = list(self.gene_key_mapping.keys())
-        self.reactome_list = list(self.reactome_key_mapping.keys())
-        self.disease_list = list(self.disease_key_mapping.keys())
-        self.therapeutic_area_list = list(self.therapeutic_area_key_mapping.keys())
-        
-        # Convert data to PyArrow tables for consistency
-        self.filtered_molecule_table = pa.Table.from_pandas(self.filtered_molecule_df)
-        self.filtered_indication_table = pa.Table.from_pandas(self.filtered_indication_df)
-        self.disease_table = pa.Table.from_pandas(self.filtered_disease_df)
-        self.gene_table = pa.Table.from_pandas(self.filtered_gene_df)
-        
-        print("✅ Pre-processed data loaded successfully")
+        try:
+            # Load processed tables
+            print("   - Loading processed tables...")
+            self.filtered_molecule_df = pd.read_csv(f"{processed_path}tables/processed_molecules.csv")
+            self.filtered_indication_df = pd.read_csv(f"{processed_path}tables/processed_indications.csv")
+            
+            # Handle approvedIndications column that might be stored as strings
+            if 'approvedIndications' in self.filtered_indication_df.columns:
+                self.filtered_indication_df['approvedIndications'] = self.filtered_indication_df['approvedIndications'].apply(
+                    lambda x: ast.literal_eval(x) if isinstance(x, str) and x.startswith('[') else x
+                )
+            
+            self.filtered_disease_df = pd.read_csv(f"{processed_path}tables/processed_diseases.csv")
+            self.filtered_gene_df = pd.read_csv(f"{processed_path}tables/processed_genes.csv")
+            self.filtered_associations_df = pd.read_csv(f"{processed_path}tables/processed_associations.csv")
+            
+            # Load mappings
+            print("   - Loading node mappings...")
+            with open(f"{processed_path}mappings/drug_key_mapping.json", 'r') as f:
+                self.drug_key_mapping = json.load(f)
+            with open(f"{processed_path}mappings/drug_type_key_mapping.json", 'r') as f:
+                self.drug_type_key_mapping = json.load(f)
+            with open(f"{processed_path}mappings/gene_key_mapping.json", 'r') as f:
+                self.gene_key_mapping = json.load(f)
+            with open(f"{processed_path}mappings/reactome_key_mapping.json", 'r') as f:
+                self.reactome_key_mapping = json.load(f)
+            with open(f"{processed_path}mappings/disease_key_mapping.json", 'r') as f:
+                self.disease_key_mapping = json.load(f)
+            with open(f"{processed_path}mappings/therapeutic_area_key_mapping.json", 'r') as f:
+                self.therapeutic_area_key_mapping = json.load(f)
+            
+            # Load edge tensors
+            print("   - Loading pre-computed edges...")
+            self.molecule_drugType_edges = torch.load(f"{processed_path}edges/1_molecule_drugType_edges.pt")
+            self.molecule_disease_edges = torch.load(f"{processed_path}edges/2_molecule_disease_edges.pt")
+            self.molecule_gene_edges = torch.load(f"{processed_path}edges/3_molecule_gene_edges.pt")
+            self.gene_reactome_edges = torch.load(f"{processed_path}edges/4_gene_reactome_edges.pt")
+            self.disease_therapeutic_edges = torch.load(f"{processed_path}edges/5_disease_therapeutic_edges.pt")
+            self.disease_gene_edges = torch.load(f"{processed_path}edges/6_disease_gene_edges.pt")
+            
+            # Create node lists from mappings
+            self.approved_drugs_list = list(self.drug_key_mapping.keys())
+            self.drug_type_list = list(self.drug_type_key_mapping.keys())
+            self.gene_list = list(self.gene_key_mapping.keys())
+            self.reactome_list = list(self.reactome_key_mapping.keys())
+            self.disease_list = list(self.disease_key_mapping.keys())
+            self.therapeutic_area_list = list(self.therapeutic_area_key_mapping.keys())
+            
+            # Convert data to PyArrow tables for consistency with raw data workflow
+            self.filtered_molecule_table = pa.Table.from_pandas(self.filtered_molecule_df)
+            self.filtered_indication_table = pa.Table.from_pandas(self.filtered_indication_df)
+            self.disease_table = pa.Table.from_pandas(self.filtered_disease_df)
+            self.gene_table = pa.Table.from_pandas(self.filtered_gene_df)
+            
+            print("Pre-processed data loaded successfully!")
+            print(f"   {len(self.approved_drugs_list)} drugs, {len(self.gene_list)} genes, {len(self.disease_list)} diseases")
+            
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Error loading pre-processed data: {e}\n"
+                "Please ensure you have run the data processing script to generate the required files."
+            )
     
     def load_and_preprocess_raw_data(self):
-        """Load and preprocess raw OpenTargets data."""
-        print("Loading and preprocessing raw data...")
+        """Load and preprocess raw OpenTargets data (Option 1)."""
+        print("Loading and preprocessing raw OpenTargets data...")
         
-        # Load indication data
-        indication_dataset = ds.dataset(self.config['indication_path'], format="parquet")
-        indication_table = indication_dataset.to_table()
-        
-        # Filter for approved drugs
-        expr = pc.list_value_length(pc.field("approvedIndications")) > 0 
-        filtered_indication_table = indication_table.filter(expr)
-        self.approvedDrugs = filtered_indication_table.column('id').combine_chunks()
-        
-        # Load and process molecule data
-        molecule_dataset = ds.dataset(self.config['molecule_path'], format="parquet")
-        molecule_table = molecule_dataset.to_table()
-        
-        # Process drug types
-        drug_type_column = pc.replace_substring(molecule_table.column('drugType'), 'unknown', 'Unknown')
-        fill_value = pa.scalar('Unknown', type=pa.string())
-        molecule_table = molecule_table.drop_columns("drugType").add_column(3, "drugType", drug_type_column.fill_null(fill_value))
-        
-        # Apply redundant ID mappings
-        self.filtered_molecule_df, self.filtered_indication_df = self._apply_id_mappings(
-            molecule_table, filtered_indication_table
-        )
-        
-        # Load gene data
-        gene_dataset = ds.dataset(self.config['gene_path'], format="parquet")
-        self.gene_table = gene_dataset.to_table().flatten().flatten()
-        
-        # Load disease data
-        disease_dataset = ds.dataset(self.config['disease_path'], format="parquet")
-        self.disease_table = self._preprocess_disease_data(disease_dataset.to_table())
-        
-        # Load associations data
-        associations_dataset = ds.dataset(self.config['associations_path'], format="parquet")
-        self.associations_table = self._preprocess_associations_data(associations_dataset.to_table())
-        
-        # Create node mappings for raw data
-        self.create_node_mappings_from_raw()
-        
-        print("✅ Raw data loading and preprocessing completed")
+        try:
+            # Load indication data
+            print("   - Loading indication data...")
+            indication_dataset = ds.dataset(self.config['indication_path'], format="parquet")
+            indication_table = indication_dataset.to_table()
+            
+            # Filter for approved drugs
+            expr = pc.list_value_length(pc.field("approvedIndications")) > 0 
+            filtered_indication_table = indication_table.filter(expr)
+            self.approvedDrugs = filtered_indication_table.column('id').combine_chunks()
+            
+            # Load and process molecule data
+            print("   - Loading molecule data...")
+            molecule_dataset = ds.dataset(self.config['molecule_path'], format="parquet")
+            molecule_table = molecule_dataset.to_table()
+            
+            # Process drug types
+            drug_type_column = pc.replace_substring(molecule_table.column('drugType'), 'unknown', 'Unknown')
+            fill_value = pa.scalar('Unknown', type=pa.string())
+            molecule_table = molecule_table.drop_columns("drugType").add_column(3, "drugType", drug_type_column.fill_null(fill_value))
+            
+            # Apply redundant ID mappings
+            print("   - Applying ID mappings...")
+            self.filtered_molecule_df, self.filtered_indication_df = self._apply_id_mappings(
+                molecule_table, filtered_indication_table
+            )
+            
+            # Load gene data
+            print("   - Loading gene/target data...")
+            gene_dataset = ds.dataset(self.config['gene_path'], format="parquet")
+            self.gene_table = gene_dataset.to_table().flatten().flatten()
+            
+            # Load disease data
+            print("   - Loading disease data...")
+            disease_dataset = ds.dataset(self.config['disease_path'], format="parquet")
+            self.disease_table = self._preprocess_disease_data(disease_dataset.to_table())
+            
+            # Load associations data
+            print("   - Loading associations data...")
+            associations_dataset = ds.dataset(self.config['associations_path'], format="parquet")
+            self.associations_table = self._preprocess_associations_data(associations_dataset.to_table())
+            
+            # Create node mappings for raw data
+            print("   - Creating node mappings...")
+            self.create_node_mappings_from_raw()
+            
+            print("Raw data loading and preprocessing completed!")
+            print(f"   {len(self.approved_drugs_list)} drugs, {len(self.gene_list)} genes, {len(self.disease_list)} diseases")
+            
+        except Exception as e:
+            print(f"ERROR: Error loading raw data: {e}")
+            print("\nPlease ensure you have:")
+            print("1. Downloaded the required OpenTargets datasets")
+            print("2. Placed them in the correct directory structure as per README")
+            print("3. Renamed 'disease' to 'diseases' and 'target' to 'targets'")
+            raise
         
     def _apply_id_mappings(self, molecule_table, filtered_indication_table):
         """Apply redundant ID mappings for consistency."""
@@ -592,15 +637,30 @@ class GraphBuilder:
             therapeutic_area_feature_matrix
         ], dim=0)
         
+        print(f"Created feature matrix with shape: {self.all_features.shape}")_type_vector, torch.ones(len(disease_indices), 2) * -1), dim=1)
+        
+        therapeutic_area_node_type_vector = torch.tensor([therapeutic_area_one_hot], dtype=torch.float32).repeat(len(therapeutic_area_indices), 1)
+        therapeutic_area_feature_matrix = torch.cat((therapeutic_area_node_type_vector, torch.ones(len(therapeutic_area_indices), 2) * -1), dim=1)
+        
+        # Combine all feature matrices
+        self.all_features = torch.cat([
+            drug_feature_matrix,
+            drug_type_feature_matrix,
+            gene_feature_matrix,
+            reactome_feature_matrix,
+            disease_feature_matrix,
+            therapeutic_area_feature_matrix
+        ], dim=0)
+        
         print(f"Created feature matrix with shape: {self.all_features.shape}")
     
     def create_edges(self):
         """Create edge indices for the graph."""
-        print("Creating edges...")
+        print("Creating graph edges...")
         
         if self.data_mode == "processed":
             # For pre-processed data, edges are already loaded
-            print("Using pre-processed edge tensors")
+            print("   Using pre-processed edge tensors")
             all_edges = [
                 self.molecule_drugType_edges,
                 self.molecule_disease_edges,
@@ -611,25 +671,29 @@ class GraphBuilder:
             ]
         else:
             # For raw data, extract edges from tables
-            print("Extracting edges from raw data")
+            print("   Extracting edges from raw data...")
             
             # Convert dataframes back to PyArrow tables
             filtered_molecule_table = pa.Table.from_pandas(self.filtered_molecule_df)
             filtered_indication_table = pa.Table.from_pandas(self.filtered_indication_df)
             
             # Extract different edge types
+            print("     - Drug-DrugType edges...")
             molecule_drugType_table = filtered_molecule_table.select(['id', 'drugType']).drop_null().flatten()
             self.molecule_drugType_edges = extract_edges(molecule_drugType_table, self.drug_key_mapping, self.drug_type_key_mapping)
             self.molecule_drugType_edges = torch.unique(self.molecule_drugType_edges, dim=1)
             
+            print("     - Drug-Disease edges...")
             molecule_disease_table = filtered_indication_table.select(['id', 'approvedIndications']).flatten()
             self.molecule_disease_edges = extract_edges(molecule_disease_table, self.drug_key_mapping, self.disease_key_mapping)
             self.molecule_disease_edges = torch.unique(self.molecule_disease_edges, dim=1)
             
+            print("     - Drug-Gene edges...")
             molecule_gene_table = filtered_molecule_table.select(['id', 'linkedTargets.rows']).drop_null().flatten()
             self.molecule_gene_edges = extract_edges(molecule_gene_table, self.drug_key_mapping, self.gene_key_mapping)
             self.molecule_gene_edges = torch.unique(self.molecule_gene_edges, dim=1)
             
+            print("     - Gene-Reactome edges...")
             # Create gene-reactome edges based on version
             if self.config['training_version'] == 21.04 or self.config['training_version'] == 21.06:
                 gene_reactome_table = self.gene_table.select(['id', 'reactome']).flatten()
@@ -637,6 +701,41 @@ class GraphBuilder:
                 gene_reactome_df = self.gene_table.select(['id', 'pathways']).flatten().to_pandas()
                 exploded = gene_reactome_df.explode('pathways')
                 exploded['pathwayId'] = exploded['pathways'].apply(lambda x: x['pathwayId'] if pd.notnull(x) else None)
+                final_df = exploded[['id', 'pathwayId']]
+                gene_reactome_table = pa.Table.from_pandas(final_df).drop_null()
+            
+            self.gene_reactome_edges = extract_edges(gene_reactome_table, self.gene_key_mapping, self.reactome_key_mapping)
+            self.gene_reactome_edges = torch.unique(self.gene_reactome_edges, dim=1)
+            
+            print("     - Disease-Therapeutic edges...")
+            disease_therapeutic_table = self.disease_table.select(['id', 'therapeuticAreas']).drop_null().flatten()
+            self.disease_therapeutic_edges = extract_edges(disease_therapeutic_table, self.disease_key_mapping, self.therapeutic_area_key_mapping)
+            self.disease_therapeutic_edges = torch.unique(self.disease_therapeutic_edges, dim=1)
+            
+            print("     - Disease-Gene edges...")
+            disease_gene_table = self.associations_table.select(['diseaseId', 'targetId']).flatten()
+            self.disease_gene_edges = extract_edges(disease_gene_table, self.disease_key_mapping, self.gene_key_mapping)
+            self.disease_gene_edges = torch.unique(self.disease_gene_edges, dim=1)
+            
+            all_edges = [
+                self.molecule_drugType_edges,
+                self.molecule_disease_edges,
+                self.molecule_gene_edges,
+                self.gene_reactome_edges,
+                self.disease_therapeutic_edges,
+                self.disease_gene_edges
+            ]
+        
+        # Combine all edges
+        self.all_edge_index = torch.cat(all_edges, dim=1)
+        
+        print(f"Created {self.all_edge_index.size(1)} total edges:")
+        print(f"   - Drug -> DrugType: {all_edges[0].size(1):,}")
+        print(f"   - Drug -> Disease: {all_edges[1].size(1):,}")
+        print(f"   - Drug -> Gene: {all_edges[2].size(1):,}")
+        print(f"   - Gene -> Reactome: {all_edges[3].size(1):,}")
+        print(f"   - Disease -> Therapeutic: {all_edges[4].size(1):,}")
+        print(f"   - Disease -> Gene: {all_edges[5].size(1):,}")(lambda x: x['pathwayId'] if pd.notnull(x) else None)
                 final_df = exploded[['id', 'pathwayId']]
                 gene_reactome_table = pa.Table.from_pandas(final_df).drop_null()
             
@@ -744,7 +843,7 @@ class GraphBuilder:
     
     def build_graph(self):
         """Build the complete graph object."""
-        print("Building final graph...")
+        print("Building final graph structure...")
         
         # Create metadata
         node_info = {
@@ -757,19 +856,22 @@ class GraphBuilder:
         }
         
         edge_info = {
-            "Drug-DrugType": self.molecule_drugType_edges.size(1),
-            "Drug-Disease": self.molecule_disease_edges.size(1),
-            "Drug-Gene": self.molecule_gene_edges.size(1),
-            "Gene-Reactome": self.gene_reactome_edges.size(1),
-            "Disease-Therapeutic": self.disease_therapeutic_edges.size(1),
-            "Disease-Gene": self.disease_gene_edges.size(1)
+            "Drug-DrugType": int(self.molecule_drugType_edges.size(1)),
+            "Drug-Disease": int(self.molecule_disease_edges.size(1)),
+            "Drug-Gene": int(self.molecule_gene_edges.size(1)),
+            "Gene-Reactome": int(self.gene_reactome_edges.size(1)),
+            "Disease-Therapeutic": int(self.disease_therapeutic_edges.size(1)),
+            "Disease-Gene": int(self.disease_gene_edges.size(1))
         }
         
         metadata = {
             "node_info": node_info,
             "edge_info": edge_info,
             "data_mode": self.data_mode,
-            "config": self.config
+            "config": self.config,
+            "creation_timestamp": dt.datetime.now().isoformat(),
+            "total_nodes": sum(node_info.values()),
+            "total_edges": sum(edge_info.values())
         }
         
         # Create graph
@@ -786,11 +888,11 @@ class GraphBuilder:
         # Convert to undirected
         graph = T.ToUndirected()(graph)
         
-        print("Graph creation completed!")
-        print(f"Graph: {graph}")
-        print(f"Total nodes: {graph.x.size(0)}")
-        print(f"Total edges: {graph.edge_index.size(1)}")
-        print(f"Feature dimensions: {graph.x.size(1)}")
+        print("Graph construction completed!")
+        print(f"   Nodes: {graph.x.size(0):,} | Edges: {graph.edge_index.size(1):,}")
+        print(f"   Features: {graph.x.size(1)} dimensions")
+        print(f"   Validation samples: {len(self.val_edge_tensor):,}")
+        print(f"   Test samples: {len(self.test_edge_tensor):,}")
         
         return graph
 
@@ -802,16 +904,15 @@ def create_graph(config=None):
     # Set reproducibility
     enable_full_reproducibility(42)
     
-    # Create output directory
-    os.makedirs(config['results_path'], exist_ok=True)
-    
     # Detect data mode
+    print("Detecting available data...")
     data_mode = detect_data_mode(config)
     
     # Initialize graph builder
     builder = GraphBuilder(config, data_mode)
     
     # Build graph step by step
+    print(f"\nBuilding graph using {data_mode} data...")
     builder.load_data()
     builder.create_features()
     builder.create_edges()
@@ -820,14 +921,20 @@ def create_graph(config=None):
     # Build final graph
     graph = builder.build_graph()
     
-    # Save graph
-    datetime_str = dt.datetime.now().strftime("%Y%m%d%H%M%S")
-    data_mode_suffix = "_preprocessed" if data_mode == "processed" else "_raw"
-    graph_path = f"{config['results_path']}{config['training_version']}_{config['negative_sampling_approach']}_{config['as_dataset']}{data_mode_suffix}_{datetime_str}_graph.pt"
+    # Save graph with descriptive filename
+    datetime_str = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    data_mode_suffix = "preprocessed" if data_mode == "processed" else "raw"
+    graph_filename = f"graph_{config['training_version']}_{data_mode_suffix}_{datetime_str}.pt"
+    graph_path = os.path.join(config['results_path'], graph_filename)
+    
     torch.save(graph, graph_path)
     
-    print(f"\n Graph saved to: {graph_path}")
-    print(f"Data mode used: {data_mode}")
+    print(f"\nGraph creation completed!")
+    print(f"Graph saved to: {graph_path}")
+    print(f"Data mode used: Option {'2' if data_mode == 'processed' else '1'} ({data_mode})")
+    print(f"Total nodes: {graph.x.size(0):,}")
+    print(f"Total edges: {graph.edge_index.size(1):,}")
+    print(f"Feature dimensions: {graph.x.size(1)}")
     
     return graph, graph_path, builder
 
@@ -851,14 +958,21 @@ def load_config_from_file(config_path="config.json"):
         return get_config()
 
 if __name__ == "__main__":
+    print("Drug-Disease Prediction - Graph Creation")
+    print("=" * 50)
+    
     # Check for command line arguments
     if len(sys.argv) > 1:
         config_path = sys.argv[1]
         config = load_config_from_file(config_path)
+        print(f"Using configuration from: {config_path}")
     else:
         config = load_config_from_file()  # Try to load config.json by default
+        print("Using default configuration")
     
-    print("Starting graph creation...")
-    print(f"Looking for data in: {config.get('processed_path', 'N/A')} and {config.get('general_path', 'N/A')}")
+    print(f"Data paths:")
+    print(f"   Raw data: {config.get('general_path', 'N/A')}")
+    print(f"   Processed data: {config.get('processed_path', 'N/A')}")
+    print(f"   Results: {config.get('results_path', 'N/A')}")
     
     graph, graph_path, builder = create_graph(config)
