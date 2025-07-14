@@ -40,12 +40,70 @@ pip install -r requirements.txt
 
 ## Data Preparation
 
-Download OpenTargets data and place in the following structure:
-- `data/raw/{version}/indication/`
-- `data/raw/{version}/molecule/`
-- `data/raw/{version}/diseases/`
-- `data/raw/{version}/targets/`
-- `data/raw/{version}/{association_type}/`
+### Download OpenTargets Data
+
+Visit the OpenTargets downloads page to access the data: https://platform.opentargets.org/downloads/
+
+#### Using FileZilla (Recommended)
+1. **Host**: `ftp.ebi.ac.uk`
+2. **Remote site**: `/pub/databases/opentargets/platform/`
+3. **Navigate** to the version folders: `21.06`, `23.06`, or `24.06`
+4. **Download** the required datasets from each version
+
+#### Command Line Download
+```bash
+# Create directory structure
+mkdir -p data/raw/{21.06,23.06,24.06}
+
+# Download using wget (example for 21.06)
+cd data/raw/21.06
+wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/drug_indication/
+wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/molecule/
+wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/diseases/
+wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/targets/
+wget -r -np -nH --cut-dirs=5 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/associationByOverallDirect/
+
+# Repeat for versions 23.06 and 24.06 (only drug_indication needed for these)
+```
+
+### Required Data by Version
+
+#### Training Version (21.06):
+From `/pub/databases/opentargets/platform/21.06/output/`:
+- `drug_indication/` → rename to `indication/`
+- `molecule/`
+- `diseases/`
+- `targets/`
+- `associationByOverallDirect/`
+
+#### Validation Version (23.06):
+From `/pub/databases/opentargets/platform/23.06/output/`:
+- `drug_indication/` → rename to `indication/`
+
+#### Test Version (24.06):
+From `/pub/databases/opentargets/platform/24.06/output/`:
+- `drug_indication/` → rename to `indication/`
+
+### Final Directory Structure:
+```
+data/raw/
+├── 21.06/
+│   ├── indication/           # renamed from drug_indication
+│   ├── molecule/            
+│   ├── diseases/            
+│   ├── targets/             
+│   └── associationByOverallDirect/
+├── 23.06/
+│   └── indication/          # renamed from drug_indication
+└── 24.06/
+    └── indication/          # renamed from drug_indication
+```
+
+**Important Notes:**
+- All files are in PARQUET format
+- Rename `drug_indication` folders to `indication` after download
+- Large datasets may require significant download time and storage space
+- Check OpenTargets license terms before using the data
 
 ## Usage
 
