@@ -40,7 +40,9 @@ pip install -r requirements.txt
 
 ## Data Preparation
 
-### Download OpenTargets Data
+Choose one of the following options:
+
+### Option 1: Download Raw OpenTargets Data (Complete Setup)
 
 Visit the OpenTargets downloads page to access the data: https://platform.opentargets.org/downloads/
 
@@ -67,9 +69,9 @@ wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/pla
 # Repeat for versions 23.06 and 24.06 (only indication needed for these)
 ```
 
-### Required Data by Version
+#### Required Data by Version
 
-#### Training Version (21.06):
+**Training Version (21.06):**
 From `/pub/databases/opentargets/platform/21.06/output/etl/parquet/`:
 - `indication/`
 - `molecule/`
@@ -77,15 +79,15 @@ From `/pub/databases/opentargets/platform/21.06/output/etl/parquet/`:
 - `target/` → rename to `targets/`
 - `associationByOverallDirect/`
 
-#### Validation Version (23.06):
+**Validation Version (23.06):**
 From `/pub/databases/opentargets/platform/23.06/output/etl/parquet/`:
 - `indication/`
 
-#### Test Version (24.06):
+**Test Version (24.06):**
 From `/pub/databases/opentargets/platform/24.06/output/etl/parquet/`:
 - `indication/`
 
-### Final Directory Structure:
+#### Final Directory Structure:
 ```
 data/raw/
 ├── 21.06/
@@ -107,6 +109,56 @@ data/raw/
 - Large datasets may require significant download time and storage space
 - Check OpenTargets license terms before using the data
 
+### Option 2: Use Pre-processed Data (Quick Start)
+
+For a faster setup, you can use pre-processed data files that are ready for training:
+
+#### Download Pre-processed Data
+1. **Download the pre-processed dataset** from: [Add your download link here]
+2. **Extract** the files to your project directory
+3. **Create the directory structure**:
+
+```bash
+mkdir -p data/processed
+```
+
+#### Required Pre-processed Files
+Extract the downloaded files to create this structure:
+```
+data/processed/
+├── drug_disease_graph_train.pt     # Training graph
+├── drug_disease_graph_val.pt       # Validation graph  
+├── drug_disease_graph_test.pt      # Test graph
+├── node_mappings.json              # Node ID mappings
+├── edge_mappings.json              # Edge type mappings
+└── dataset_info.json               # Dataset statistics
+```
+
+#### What's Included
+- **Pre-built graph objects** for training, validation, and testing
+- **Node features** extracted from OpenTargets data
+- **Edge relationships** between drugs and diseases
+- **Negative sampling** already applied
+- **Feature normalization** completed
+- **Train/validation/test splits** prepared
+
+#### Quick Start with Pre-processed Data
+Once you have the pre-processed files in place:
+
+```bash
+# Skip graph creation and go directly to training
+python 2_training_validation.py data/processed/drug_disease_graph_train.pt results/
+
+# Then evaluate the trained models
+python 3_testing_evaluation.py data/processed/drug_disease_graph_test.pt results/models_info.json results/
+```
+
+**Benefits of Pre-processed Data:**
+- ✅ **No large downloads** - Skip downloading GBs of raw data
+- ✅ **Faster setup** - Ready to train in minutes
+- ✅ **Consistent preprocessing** - Standardized feature extraction
+- ✅ **Skip graph creation** - Pre-built graph objects included
+
 ## Usage
 
 ### Complete Pipeline
@@ -116,7 +168,7 @@ python run_pipeline.py
 
 ### Individual Steps
 ```bash
-# Step 1: Create graph
+# Step 1: Create graph (skip if using pre-processed data)
 python 1_graph_creation.py
 
 # Step 2: Train models
