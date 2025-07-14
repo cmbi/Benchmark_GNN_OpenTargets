@@ -1,6 +1,7 @@
 """
 Graph Creation Module for Drug-Disease Prediction
 This module handles data loading, preprocessing, and graph construction.
+Supports both raw OpenTargets data (Option 1) and pre-processed data (Option 2).
 """
 
 import pyarrow as pa
@@ -21,6 +22,8 @@ import sys
 import platform
 import polars as pl
 import ast
+import os
+import json
 from torch_geometric.utils import to_networkx
 
 def set_seed(seed=42):
@@ -58,16 +61,18 @@ def get_config():
         config.update({
             'general_path': r"C:\\OpenTargets_datasets\\downloads\\",
             'results_path': r"C:\\OpenTargets_datasets\\test_results3\\",
-            'dict_path': r"C:\\OpenTargets_datasets\\test_results_biosb\\"
+            'dict_path': r"C:\\OpenTargets_datasets\\test_results_biosb\\",
+            'processed_path': r"C:\\OpenTargets_datasets\\test_results\\"
         })
     else:
         config.update({
             'general_path': "OT/",
             'results_path': "test_results/",
-            'dict_path': "test_results_biosb/"
+            'dict_path': "test_results_biosb/",
+            'processed_path': "data/processed/"
         })
     
-    # Set specific paths
+    # Set specific paths for raw data
     config.update({
         'indication_path': f"{config['general_path']}{config['training_version']}\\indication",
         'val_indication_path': f"{config['general_path']}{config['validation_version']}\\indication",
@@ -81,6 +86,37 @@ def get_config():
     })
     
     return config
+
+def detect_data_mode(config):
+    """Detect whether to use raw data or pre-processed data."""
+    processed_path = config['processed_path']
+    
+    # Check if pre-processed data exists
+    processed_files_exist = (
+        os.path.exists(f"{processed_path}tables/processed_molecules.csv") and
+        os.path.exists(f"{processed_path}mappings/drug_key_mapping.json") and
+        os.path.exists(f"{processed_path}edges/1_molecule_drugType_edges.pt")
+    )
+    
+    # Check if raw data exists
+    raw_files_exist = (
+        os.path.exists(config['indication_path']) and
+        os.path.exists(config['molecule_path']) and
+        os.path.exists(config['disease_path'])
+    )
+    
+    if processed_files_exist:
+        print("✅ Pre-processed data detected - using Option 2 workflow")
+        return "processed"
+    elif raw_files_exist:
+        print("✅ Raw data detected - using Option 1 workflow")
+        return "raw"
+    else:
+        raise FileNotFoundError(
+            "Neither pre-processed nor raw data found. Please ensure you have either:\n"
+            "- Pre-processed data in the processed_path, or\n"
+            "- Raw OpenTargets data in the general_path"
+        )
 
 # Utility Functions
 def get_indices_from_keys(key_list, index_mapping):
@@ -198,8 +234,9 @@ def align_features(matrix, feature_columns, global_feature_columns):
 class GraphBuilder:
     """Main class for building the drug-disease prediction graph."""
     
-    def __init__(self, config):
+    def __init__(self, config, data_mode):
         self.config = config
+        self.data_mode = data_mode
         self.drug_key_mapping = {}
         self.disease_key_mapping = {}
         self.gene_key_mapping = {}
@@ -207,9 +244,67 @@ class GraphBuilder:
         self.reactome_key_mapping = {}
         self.therapeutic_area_key_mapping = {}
         
-    def load_and_preprocess_data(self):
-        """Load and preprocess all datasets."""
-        print("Loading and preprocessing data...")
+    def load_data(self):
+        """Load data based on the detected mode."""
+        if self.data_mode == "processed":
+            self.load_preprocessed_data()
+        else:
+            self.load_and_preprocess_raw_data()
+    
+    def load_preprocessed_data(self):
+        """Load pre-processed data from files."""
+        print("Loading pre-processed data...")
+        
+        processed_path = self.config['processed_path']
+        
+        # Load processed tables
+        self.filtered_molecule_df = pd.read_csv(f"{processed_path}tables/processed_molecules.csv")
+        self.filtered_indication_df = pd.read_csv(f"{processed_path}tables/processed_indications.csv")
+        self.filtered_disease_df = pd.read_csv(f"{processed_path}tables/processed_diseases.csv")
+        self.filtered_gene_df = pd.read_csv(f"{processed_path}tables/processed_genes.csv")
+        self.filtered_associations_df = pd.read_csv(f"{processed_path}tables/processed_associations.csv")
+        
+        # Load mappings
+        with open(f"{processed_path}mappings/drug_key_mapping.json", 'r') as f:
+            self.drug_key_mapping = json.load(f)
+        with open(f"{processed_path}mappings/drug_type_key_mapping.json", 'r') as f:
+            self.drug_type_key_mapping = json.load(f)
+        with open(f"{processed_path}mappings/gene_key_mapping.json", 'r') as f:
+            self.gene_key_mapping = json.load(f)
+        with open(f"{processed_path}mappings/reactome_key_mapping.json", 'r') as f:
+            self.reactome_key_mapping = json.load(f)
+        with open(f"{processed_path}mappings/disease_key_mapping.json", 'r') as f:
+            self.disease_key_mapping = json.load(f)
+        with open(f"{processed_path}mappings/therapeutic_area_key_mapping.json", 'r') as f:
+            self.therapeutic_area_key_mapping = json.load(f)
+        
+        # Load edge tensors
+        self.molecule_drugType_edges = torch.load(f"{processed_path}edges/1_molecule_drugType_edges.pt")
+        self.molecule_disease_edges = torch.load(f"{processed_path}edges/2_molecule_disease_edges.pt")
+        self.molecule_gene_edges = torch.load(f"{processed_path}edges/3_molecule_gene_edges.pt")
+        self.gene_reactome_edges = torch.load(f"{processed_path}edges/4_gene_reactome_edges.pt")
+        self.disease_therapeutic_edges = torch.load(f"{processed_path}edges/5_disease_therapeutic_edges.pt")
+        self.disease_gene_edges = torch.load(f"{processed_path}edges/6_disease_gene_edges.pt")
+        
+        # Create node lists from mappings
+        self.approved_drugs_list = list(self.drug_key_mapping.keys())
+        self.drug_type_list = list(self.drug_type_key_mapping.keys())
+        self.gene_list = list(self.gene_key_mapping.keys())
+        self.reactome_list = list(self.reactome_key_mapping.keys())
+        self.disease_list = list(self.disease_key_mapping.keys())
+        self.therapeutic_area_list = list(self.therapeutic_area_key_mapping.keys())
+        
+        # Convert data to PyArrow tables for consistency
+        self.filtered_molecule_table = pa.Table.from_pandas(self.filtered_molecule_df)
+        self.filtered_indication_table = pa.Table.from_pandas(self.filtered_indication_df)
+        self.disease_table = pa.Table.from_pandas(self.filtered_disease_df)
+        self.gene_table = pa.Table.from_pandas(self.filtered_gene_df)
+        
+        print("✅ Pre-processed data loaded successfully")
+    
+    def load_and_preprocess_raw_data(self):
+        """Load and preprocess raw OpenTargets data."""
+        print("Loading and preprocessing raw data...")
         
         # Load indication data
         indication_dataset = ds.dataset(self.config['indication_path'], format="parquet")
@@ -246,7 +341,10 @@ class GraphBuilder:
         associations_dataset = ds.dataset(self.config['associations_path'], format="parquet")
         self.associations_table = self._preprocess_associations_data(associations_dataset.to_table())
         
-        print("Data loading and preprocessing completed.")
+        # Create node mappings for raw data
+        self.create_node_mappings_from_raw()
+        
+        print("✅ Raw data loading and preprocessing completed")
         
     def _apply_id_mappings(self, molecule_table, filtered_indication_table):
         """Apply redundant ID mappings for consistency."""
@@ -254,7 +352,46 @@ class GraphBuilder:
         redundant_id_mapping = {
             'CHEMBL1200538': 'CHEMBL632',
             'CHEMBL1200376': 'CHEMBL632',
-            # Add other mappings as needed...
+            'CHEMBL1200384': 'CHEMBL632',
+            'CHEMBL1201207': 'CHEMBL632',
+            'CHEMBL1497': 'CHEMBL632',
+            'CHEMBL1201661': 'CHEMBL3989767',
+            'CHEMBL1506': 'CHEMBL130',
+            'CHEMBL1201281': 'CHEMBL130',
+            'CHEMBL1201289': 'CHEMBL1753',
+            'CHEMBL3184512': 'CHEMBL1753',
+            'CHEMBL1530428': 'CHEMBL384467',
+            'CHEMBL1201302': 'CHEMBL384467',
+            'CHEMBL1511': 'CHEMBL135',
+            'CHEMBL4298187': 'CHEMBL2108597',
+            'CHEMBL4298110': 'CHEMBL2108597',
+            'CHEMBL1200640': 'CHEMBL2108597',
+            'CHEMBL989': 'CHEMBL1501',
+            'CHEMBL1201064': 'CHEMBL1200600',
+            'CHEMBL1473': 'CHEMBL1676',
+            'CHEMBL1201512': 'CHEMBL1201688',
+            'CHEMBL1201657': 'CHEMBL1201513',
+            'CHEMBL1091': 'CHEMBL389621',
+            'CHEMBL1549': 'CHEMBL389621',
+            'CHEMBL3989663': 'CHEMBL389621',
+            'CHEMBL1641': 'CHEMBL389621',
+            'CHEMBL1200562': 'CHEMBL389621',
+            'CHEMBL1201544': 'CHEMBL2108597',
+            'CHEMBL1200823': 'CHEMBL2108597',
+            'CHEMBL2021423': 'CHEMBL1200572',
+            'CHEMBL1364144':'CHEMBL650',
+            'CHEMBL1200844': 'CHEMBL650',
+            'CHEMBL1201265': 'CHEMBL650',
+            'CHEMBL1140': 'CHEMBL573',
+            'CHEMBL1152': 'CHEMBL131',
+            'CHEMBL1201231': 'CHEMBL131',
+            'CHEMBL1200909': 'CHEMBL131',
+            'CHEMBL635': 'CHEMBL131',
+            'CHEMBL1200335': 'CHEMBL386630',
+            'CHEMBL1504': 'CHEMBL1451',
+            'CHEMBL1200449': 'CHEMBL1451',
+            'CHEMBL1200878': 'CHEMBL1451',
+            'CHEMBL1200929': 'CHEMBL3988900'
         }
         
         redundant_id_mapping_D = {
@@ -275,8 +412,32 @@ class GraphBuilder:
         # Process indication data
         filtered_indication_df = filtered_indication_table.to_pandas()
         
-        # Apply mappings (simplified for brevity)
-        # In practice, you'd implement the full mapping logic here
+        # Apply disease ID mappings (simplified implementation)
+        def safe_list_conversion(value):
+            if isinstance(value, str):
+                try:
+                    return ast.literal_eval(value)
+                except:
+                    return []
+            elif isinstance(value, np.ndarray):
+                return value.tolist()
+            elif isinstance(value, list):
+                return value
+            return [value]
+
+        def update_approved_indications(disease_list, mapping_dict):
+            if not isinstance(disease_list, list):
+                return disease_list
+            return [mapping_dict.get(str(d), str(d)) for d in disease_list]
+
+        filtered_indication_df['approvedIndications'] = filtered_indication_df['approvedIndications'].apply(safe_list_conversion)
+        filtered_indication_df['approvedIndications'] = filtered_indication_df['approvedIndications'].apply(
+            lambda x: update_approved_indications(x, redundant_id_mapping_D)
+        )
+        
+        # Filter molecules to only include those with approved indications
+        unique_chembl_ids = filtered_indication_df['id'].unique()
+        filtered_molecule_df = filtered_molecule_df[filtered_molecule_df['id'].isin(unique_chembl_ids)]
         
         return filtered_molecule_df, filtered_indication_df
     
@@ -319,16 +480,12 @@ class GraphBuilder:
                 score_column = col
                 break
         
-        if self.config['training_version'] == 21.04:
-            associations_table = associations_table.select(['diseaseId', 'targetId', score_column])
-        else:
-            associations_table = associations_table.select(['diseaseId', 'targetId', score_column])
-        
+        associations_table = associations_table.select(['diseaseId', 'targetId', score_column])
         return associations_table
     
-    def create_node_mappings(self):
-        """Create node mappings for all node types."""
-        print("Creating node mappings...")
+    def create_node_mappings_from_raw(self):
+        """Create node mappings from raw data."""
+        print("Creating node mappings from raw data...")
         
         # Extract unique node lists
         self.approved_drugs_list = list(self.filtered_molecule_df['id'].unique())
@@ -337,6 +494,20 @@ class GraphBuilder:
         
         drug_type = self.filtered_molecule_df['drugType'].dropna().unique().tolist()
         self.drug_type_list = drug_type
+        
+        # Extract reactome and therapeutic areas
+        if self.config['training_version'] == 21.04 or self.config['training_version'] == 21.06:
+            filtered_gene_table = self.gene_table.select(['id', 'approvedName','bioType', 'proteinAnnotations.functions', 'reactome']).flatten()
+            reactome = filtered_gene_table.column('reactome').combine_chunks().flatten()
+        else:
+            filtered_gene_table = self.gene_table.select(['id', 'approvedName','biotype', 'functionDescriptions', 'proteinIds', 'pathways']).flatten()
+            reactome = filtered_gene_table.column('pathways').combine_chunks().flatten()
+            reactome = reactome.field(0)
+        
+        self.reactome_list = list(reactome.unique().to_pylist())
+        
+        therapeutic_area = self.disease_table.column('therapeuticAreas').combine_chunks().flatten()
+        self.therapeutic_area_list = list(therapeutic_area.unique().to_pylist())
         
         # Create mappings
         self.drug_key_mapping = {self.approved_drugs_list[i]: i for i in range(len(self.approved_drugs_list))}
@@ -347,7 +518,14 @@ class GraphBuilder:
         offset += len(self.drug_type_key_mapping)
         self.gene_key_mapping = {self.gene_list[i]: i + offset for i in range(len(self.gene_list))}
         
-        # Continue for other node types...
+        offset += len(self.gene_key_mapping)
+        self.reactome_key_mapping = {self.reactome_list[i]: i + offset for i in range(len(self.reactome_list))}
+        
+        offset += len(self.reactome_key_mapping)
+        self.disease_key_mapping = {self.disease_list[i]: i + offset for i in range(len(self.disease_list))}
+        
+        offset += len(self.disease_key_mapping)
+        self.therapeutic_area_key_mapping = {self.therapeutic_area_list[i]: i + offset for i in range(len(self.therapeutic_area_list))}
         
         print(f"Created mappings for {len(self.drug_key_mapping)} drugs, {len(self.gene_key_mapping)} genes, {len(self.disease_key_mapping)} diseases")
     
@@ -355,39 +533,64 @@ class GraphBuilder:
         """Create node features."""
         print("Creating node features...")
         
-        # Define node types
-        num_node_types = 6
-        
-        # Get indices
+        # Get indices for different node types
         drug_indices = torch.tensor(get_indices_from_keys(self.approved_drugs_list, self.drug_key_mapping), dtype=torch.long)
+        drug_type_indices = torch.tensor(get_indices_from_keys(self.drug_type_list, self.drug_type_key_mapping), dtype=torch.long)
         gene_indices = torch.tensor(get_indices_from_keys(self.gene_list, self.gene_key_mapping), dtype=torch.long)
+        reactome_indices = torch.tensor(get_indices_from_keys(self.reactome_list, self.reactome_key_mapping), dtype=torch.long)
         disease_indices = torch.tensor(get_indices_from_keys(self.disease_list, self.disease_key_mapping), dtype=torch.long)
+        therapeutic_area_indices = torch.tensor(get_indices_from_keys(self.therapeutic_area_list, self.therapeutic_area_key_mapping), dtype=torch.long)
         
         # Create drug features
-        filtered_molecule_table = pa.Table.from_pandas(self.filtered_molecule_df)
-        blackBoxWarning = filtered_molecule_table.column('blackBoxWarning').combine_chunks()
+        if self.data_mode == "processed":
+            # For pre-processed data, use the dataframe directly
+            molecule_table = self.filtered_molecule_table
+        else:
+            # For raw data, convert dataframe to PyArrow table
+            molecule_table = pa.Table.from_pandas(self.filtered_molecule_df)
+        
+        blackBoxWarning = molecule_table.column('blackBoxWarning').combine_chunks()
         blackBoxWarning_vector = boolean_encode(blackBoxWarning, drug_indices)
         
-        yearOfFirstApproval = filtered_molecule_table.column('yearOfFirstApproval').combine_chunks()
+        yearOfFirstApproval = molecule_table.column('yearOfFirstApproval').combine_chunks()
         yearOfFirstApproval_vector = normalize(yearOfFirstApproval, drug_indices)
         
+        # Create one-hot encodings for different node types
         drug_one_hot = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        drug_node_type_vector = torch.tensor([drug_one_hot], dtype=torch.float32).repeat(len(drug_indices), 1)
+        drug_type_one_hot = [0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+        gene_one_hot = [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+        reactome_one_hot = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        disease_one_hot = [0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        therapeutic_area_one_hot = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         
+        # Create feature matrices for each node type
+        drug_node_type_vector = torch.tensor([drug_one_hot], dtype=torch.float32).repeat(len(drug_indices), 1)
         drug_feature_matrix = torch.cat((drug_node_type_vector, blackBoxWarning_vector, yearOfFirstApproval_vector), dim=1)
         
-        # Create other feature matrices (simplified)
-        # ... implement similar logic for other node types
+        drug_type_node_type_vector = torch.tensor([drug_type_one_hot], dtype=torch.float32).repeat(len(drug_type_indices), 1)
+        drug_type_feature_matrix = torch.cat((drug_type_node_type_vector, torch.ones(len(drug_type_indices), 2) * -1), dim=1)
         
-        # Pad and align all features
-        pad_size = 9
-        global_feature_columns = ['drug_one_hot', 'drug_type_one_hot', 'gene_one_hot', 'disease_one_hot', 'reactome_one_hot', 'therapeutic_area_one_hot', 'blackBoxWarning', 'yearOfFirstApproval', 'bioType']
+        gene_node_type_vector = torch.tensor([gene_one_hot], dtype=torch.float32).repeat(len(gene_indices), 1)
+        gene_feature_matrix = torch.cat((gene_node_type_vector, torch.ones(len(gene_indices), 2) * -1), dim=1)
         
-        # Apply padding and alignment to all feature matrices
-        drug_feature_matrix = pad_feature_matrix(drug_feature_matrix, pad_size, -1)
+        reactome_node_type_vector = torch.tensor([reactome_one_hot], dtype=torch.float32).repeat(len(reactome_indices), 1)
+        reactome_feature_matrix = torch.cat((reactome_node_type_vector, torch.ones(len(reactome_indices), 2) * -1), dim=1)
         
-        # Stack all features
-        self.all_features = drug_feature_matrix  # Simplified - add other features in practice
+        disease_node_type_vector = torch.tensor([disease_one_hot], dtype=torch.float32).repeat(len(disease_indices), 1)
+        disease_feature_matrix = torch.cat((disease_node_type_vector, torch.ones(len(disease_indices), 2) * -1), dim=1)
+        
+        therapeutic_area_node_type_vector = torch.tensor([therapeutic_area_one_hot], dtype=torch.float32).repeat(len(therapeutic_area_indices), 1)
+        therapeutic_area_feature_matrix = torch.cat((therapeutic_area_node_type_vector, torch.ones(len(therapeutic_area_indices), 2) * -1), dim=1)
+        
+        # Combine all feature matrices
+        self.all_features = torch.cat([
+            drug_feature_matrix,
+            drug_type_feature_matrix,
+            gene_feature_matrix,
+            reactome_feature_matrix,
+            disease_feature_matrix,
+            therapeutic_area_feature_matrix
+        ], dim=0)
         
         print(f"Created feature matrix with shape: {self.all_features.shape}")
     
@@ -395,42 +598,109 @@ class GraphBuilder:
         """Create edge indices for the graph."""
         print("Creating edges...")
         
-        # Convert dataframes back to PyArrow tables
-        filtered_molecule_table = pa.Table.from_pandas(self.filtered_molecule_df)
-        filtered_indication_table = pa.Table.from_pandas(self.filtered_indication_df)
-        
-        # Extract different edge types
-        molecule_disease_table = filtered_indication_table.select(['id', 'approvedIndications']).flatten()
-        self.molecule_disease_edges = extract_edges(molecule_disease_table, self.drug_key_mapping, self.disease_key_mapping)
-        
-        # Create other edge types (simplified for brevity)
-        # In practice, implement all edge extractions here
+        if self.data_mode == "processed":
+            # For pre-processed data, edges are already loaded
+            print("Using pre-processed edge tensors")
+            all_edges = [
+                self.molecule_drugType_edges,
+                self.molecule_disease_edges,
+                self.molecule_gene_edges,
+                self.gene_reactome_edges,
+                self.disease_therapeutic_edges,
+                self.disease_gene_edges
+            ]
+        else:
+            # For raw data, extract edges from tables
+            print("Extracting edges from raw data")
+            
+            # Convert dataframes back to PyArrow tables
+            filtered_molecule_table = pa.Table.from_pandas(self.filtered_molecule_df)
+            filtered_indication_table = pa.Table.from_pandas(self.filtered_indication_df)
+            
+            # Extract different edge types
+            molecule_drugType_table = filtered_molecule_table.select(['id', 'drugType']).drop_null().flatten()
+            self.molecule_drugType_edges = extract_edges(molecule_drugType_table, self.drug_key_mapping, self.drug_type_key_mapping)
+            self.molecule_drugType_edges = torch.unique(self.molecule_drugType_edges, dim=1)
+            
+            molecule_disease_table = filtered_indication_table.select(['id', 'approvedIndications']).flatten()
+            self.molecule_disease_edges = extract_edges(molecule_disease_table, self.drug_key_mapping, self.disease_key_mapping)
+            self.molecule_disease_edges = torch.unique(self.molecule_disease_edges, dim=1)
+            
+            molecule_gene_table = filtered_molecule_table.select(['id', 'linkedTargets.rows']).drop_null().flatten()
+            self.molecule_gene_edges = extract_edges(molecule_gene_table, self.drug_key_mapping, self.gene_key_mapping)
+            self.molecule_gene_edges = torch.unique(self.molecule_gene_edges, dim=1)
+            
+            # Create gene-reactome edges based on version
+            if self.config['training_version'] == 21.04 or self.config['training_version'] == 21.06:
+                gene_reactome_table = self.gene_table.select(['id', 'reactome']).flatten()
+            else:
+                gene_reactome_df = self.gene_table.select(['id', 'pathways']).flatten().to_pandas()
+                exploded = gene_reactome_df.explode('pathways')
+                exploded['pathwayId'] = exploded['pathways'].apply(lambda x: x['pathwayId'] if pd.notnull(x) else None)
+                final_df = exploded[['id', 'pathwayId']]
+                gene_reactome_table = pa.Table.from_pandas(final_df).drop_null()
+            
+            self.gene_reactome_edges = extract_edges(gene_reactome_table, self.gene_key_mapping, self.reactome_key_mapping)
+            self.gene_reactome_edges = torch.unique(self.gene_reactome_edges, dim=1)
+            
+            disease_therapeutic_table = self.disease_table.select(['id', 'therapeuticAreas']).drop_null().flatten()
+            self.disease_therapeutic_edges = extract_edges(disease_therapeutic_table, self.disease_key_mapping, self.therapeutic_area_key_mapping)
+            self.disease_therapeutic_edges = torch.unique(self.disease_therapeutic_edges, dim=1)
+            
+            disease_gene_table = self.associations_table.select(['diseaseId', 'targetId']).flatten()
+            self.disease_gene_edges = extract_edges(disease_gene_table, self.disease_key_mapping, self.gene_key_mapping)
+            self.disease_gene_edges = torch.unique(self.disease_gene_edges, dim=1)
+            
+            all_edges = [
+                self.molecule_drugType_edges,
+                self.molecule_disease_edges,
+                self.molecule_gene_edges,
+                self.gene_reactome_edges,
+                self.disease_therapeutic_edges,
+                self.disease_gene_edges
+            ]
         
         # Combine all edges
-        self.all_edge_index = self.molecule_disease_edges  # Simplified
+        self.all_edge_index = torch.cat(all_edges, dim=1)
         
-        print(f"Created {self.all_edge_index.size(1)} edges")
+        print(f"Created {self.all_edge_index.size(1)} total edges")
+        print(f"  - Drug-DrugType: {all_edges[0].size(1)}")
+        print(f"  - Drug-Disease: {all_edges[1].size(1)}")
+        print(f"  - Drug-Gene: {all_edges[2].size(1)}")
+        print(f"  - Gene-Reactome: {all_edges[3].size(1)}")
+        print(f"  - Disease-Therapeutic: {all_edges[4].size(1)}")
+        print(f"  - Disease-Gene: {all_edges[5].size(1)}")
     
     def create_validation_test_splits(self):
         """Create validation and test edge splits."""
         print("Creating validation and test splits...")
         
-        # Load validation data
+        # For validation data
         val_indication_dataset = ds.dataset(self.config['val_indication_path'], format="parquet")
         val_indication_table = val_indication_dataset.to_table()
         
-        # Extract validation edges
-        expr1 = pc.is_in(val_indication_table.column('id'), value_set=self.approvedDrugs)
+        # Filter validation data for approved drugs
+        approved_drugs_array = pa.array(self.approved_drugs_list)
+        expr1 = pc.is_in(val_indication_table.column('id'), value_set=approved_drugs_array)
         val_filtered_indication_table = val_indication_table.filter(expr1)
         val_molecule_disease_table = val_filtered_indication_table.select(['id', 'approvedIndications']).flatten()
         
+        # Extract validation edges
         all_val_md_edges_set = extract_edges(val_molecule_disease_table, self.drug_key_mapping, self.disease_key_mapping, return_edge_set=True)
-        train_md_edges_set = extract_edges(pa.Table.from_pandas(self.filtered_indication_df).select(['id', 'approvedIndications']).flatten(), 
-                                         self.drug_key_mapping, self.disease_key_mapping, return_edge_set=True)
         
+        # Get training edges
+        if self.data_mode == "processed":
+            train_md_edges_set = set(zip(self.molecule_disease_edges[0].tolist(), self.molecule_disease_edges[1].tolist()))
+        else:
+            train_md_edges_set = extract_edges(
+                pa.Table.from_pandas(self.filtered_indication_df).select(['id', 'approvedIndications']).flatten(), 
+                self.drug_key_mapping, self.disease_key_mapping, return_edge_set=True
+            )
+        
+        # Find new validation edges
         self.new_val_edges_set = all_val_md_edges_set - train_md_edges_set
         
-        # Create negative samples
+        # Create negative samples for validation
         all_molecule_disease = generate_pairs(self.approved_drugs_list, self.disease_list, 
                                             self.drug_key_mapping, self.disease_key_mapping)
         not_linked_set = list(set(all_molecule_disease) - train_md_edges_set)
@@ -447,7 +717,30 @@ class GraphBuilder:
         self.val_edge_tensor = torch.tensor(true_pairs + false_pairs, dtype=torch.long)
         self.val_label_tensor = torch.tensor(combined_labels, dtype=torch.long)
         
+        # Create test data similarly
+        test_indication_dataset = ds.dataset(self.config['test_indication_path'], format="parquet")
+        test_indication_table = test_indication_dataset.to_table()
+        
+        expr2 = pc.is_in(test_indication_table.column('id'), value_set=approved_drugs_array)
+        test_filtered_indication_table = test_indication_table.filter(expr2)
+        test_molecule_disease_table = test_filtered_indication_table.select(['id', 'approvedIndications']).flatten()
+        
+        all_test_md_edges_set = extract_edges(test_molecule_disease_table, self.drug_key_mapping, self.disease_key_mapping, return_edge_set=True)
+        self.new_test_edges_set = all_test_md_edges_set - train_md_edges_set - all_val_md_edges_set
+        
+        # Create test tensors
+        test_true_pairs = list(self.new_test_edges_set)
+        test_false_pairs = random.sample([pair for pair in not_linked_set if pair not in false_pairs], len(test_true_pairs))
+        
+        test_true_labels = [1] * len(test_true_pairs)
+        test_false_labels = [0] * len(test_false_pairs)
+        test_combined_labels = test_true_labels + test_false_labels
+        
+        self.test_edge_tensor = torch.tensor(test_true_pairs + test_false_pairs, dtype=torch.long)
+        self.test_label_tensor = torch.tensor(test_combined_labels, dtype=torch.long)
+        
         print(f"Created validation set with {len(true_pairs)} positive and {len(false_pairs)} negative samples")
+        print(f"Created test set with {len(test_true_pairs)} positive and {len(test_false_pairs)} negative samples")
     
     def build_graph(self):
         """Build the complete graph object."""
@@ -456,11 +749,28 @@ class GraphBuilder:
         # Create metadata
         node_info = {
             "Drugs": len(self.approved_drugs_list),
+            "Drug_Types": len(self.drug_type_list),
             "Genes": len(self.gene_list),
-            "Diseases": len(self.disease_list)
+            "Reactome_Pathways": len(self.reactome_list),
+            "Diseases": len(self.disease_list),
+            "Therapeutic_Areas": len(self.therapeutic_area_list)
         }
         
-        metadata = {"node_info": node_info}
+        edge_info = {
+            "Drug-DrugType": self.molecule_drugType_edges.size(1),
+            "Drug-Disease": self.molecule_disease_edges.size(1),
+            "Drug-Gene": self.molecule_gene_edges.size(1),
+            "Gene-Reactome": self.gene_reactome_edges.size(1),
+            "Disease-Therapeutic": self.disease_therapeutic_edges.size(1),
+            "Disease-Gene": self.disease_gene_edges.size(1)
+        }
+        
+        metadata = {
+            "node_info": node_info,
+            "edge_info": edge_info,
+            "data_mode": self.data_mode,
+            "config": self.config
+        }
         
         # Create graph
         graph = Data(
@@ -468,6 +778,8 @@ class GraphBuilder:
             edge_index=self.all_edge_index,
             val_edge_index=self.val_edge_tensor,
             val_edge_label=self.val_label_tensor,
+            test_edge_index=self.test_edge_tensor,
+            test_edge_label=self.test_label_tensor,
             metadata=metadata
         )
         
@@ -476,6 +788,9 @@ class GraphBuilder:
         
         print("Graph creation completed!")
         print(f"Graph: {graph}")
+        print(f"Total nodes: {graph.x.size(0)}")
+        print(f"Total edges: {graph.edge_index.size(1)}")
+        print(f"Feature dimensions: {graph.x.size(1)}")
         
         return graph
 
@@ -487,12 +802,17 @@ def create_graph(config=None):
     # Set reproducibility
     enable_full_reproducibility(42)
     
+    # Create output directory
+    os.makedirs(config['results_path'], exist_ok=True)
+    
+    # Detect data mode
+    data_mode = detect_data_mode(config)
+    
     # Initialize graph builder
-    builder = GraphBuilder(config)
+    builder = GraphBuilder(config, data_mode)
     
     # Build graph step by step
-    builder.load_and_preprocess_data()
-    builder.create_node_mappings()
+    builder.load_data()
     builder.create_features()
     builder.create_edges()
     builder.create_validation_test_splits()
@@ -502,12 +822,43 @@ def create_graph(config=None):
     
     # Save graph
     datetime_str = dt.datetime.now().strftime("%Y%m%d%H%M%S")
-    graph_path = f"{config['results_path']}{config['training_version']}_{config['negative_sampling_approach']}_{config['as_dataset']}_{datetime_str}_graph.pt"
+    data_mode_suffix = "_preprocessed" if data_mode == "processed" else "_raw"
+    graph_path = f"{config['results_path']}{config['training_version']}_{config['negative_sampling_approach']}_{config['as_dataset']}{data_mode_suffix}_{datetime_str}_graph.pt"
     torch.save(graph, graph_path)
     
-    print(f"Graph saved to: {graph_path}")
+    print(f"\n Graph saved to: {graph_path}")
+    print(f"Data mode used: {data_mode}")
     
     return graph, graph_path, builder
 
+def load_config_from_file(config_path="config.json"):
+    """Load configuration from a JSON file."""
+    try:
+        with open(config_path, 'r') as f:
+            file_config = json.load(f)
+        
+        # Get default config and update with file config
+        config = get_config()
+        config.update(file_config)
+        
+        print(f"Configuration loaded from {config_path}")
+        return config
+    except FileNotFoundError:
+        print(f"Config file {config_path} not found, using default configuration")
+        return get_config()
+    except json.JSONDecodeError:
+        print(f"Invalid JSON in {config_path}, using default configuration")
+        return get_config()
+
 if __name__ == "__main__":
-    graph, graph_path, builder = create_graph()
+    # Check for command line arguments
+    if len(sys.argv) > 1:
+        config_path = sys.argv[1]
+        config = load_config_from_file(config_path)
+    else:
+        config = load_config_from_file()  # Try to load config.json by default
+    
+    print("Starting graph creation...")
+    print(f"Looking for data in: {config.get('processed_path', 'N/A')} and {config.get('general_path', 'N/A')}")
+    
+    graph, graph_path, builder = create_graph(config)
