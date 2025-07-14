@@ -111,37 +111,9 @@ data/raw/
 
 ### Option 2: Generate Pre-processed Data (Quick Start)
 
-For a faster setup, you can generate pre-processed data files using the included processing script:
+For a faster setup, you can directly use the processed files
 
-#### Generate Pre-processed Data
-1. **First, download only the required raw data** (smaller subset than Option 1):
-
-```bash
-# Create directory structure
-mkdir -p data/raw/{21.06,23.06,24.06}
-
-# Download only the essential datasets for 21.06
-cd data/raw/21.06
-wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/indication/
-wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/molecule/
-wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/disease/
-wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/target/
-wget -r -np -nH --cut-dirs=7 https://ftp.ebi.ac.uk/pub/databases/opentargets/platform/21.06/output/etl/parquet/associationByOverallDirect/
-
-# Rename directories as required
-mv disease diseases
-mv target targets
-```
-
-2. **Run the data processing script**:
-
-```bash
-# Run the preprocessing script to generate processed data
-python data_processing_module.py
-```
-
-#### Generated Pre-processed Files
-The script will create this structure:
+The data structure:
 ```
 data/processed/  (or your configured processed_path)
 ├── tables/
