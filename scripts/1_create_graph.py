@@ -19,6 +19,7 @@ Outputs (saved to results_path/):
 Usage:
   python scripts/1_create_graph.py
   python scripts/1_create_graph.py --config config.json --output-dir results/
+  
 """
 
 import os
