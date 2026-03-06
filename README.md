@@ -181,26 +181,26 @@ After downloading, you'll need to update your `config.json` to point to the raw 
 
 ### Complete Pipeline
 ```bash
-python run_pipeline.py
+python run_pipeline.py --complete --config config.json
 ```
 
 ### Individual Steps
 ```bash
 # Step 1: Build the knowledge graph
-python scripts/1_create_graph.py --output-dir results/
+python scripts/1_create_graph.py --output-dir results/ --config config.json
 
 # Step 2: Train GNN models
-python scripts/2_train_models.py results/graph_*.pt --results-path results/models/
+python scripts/2_train_models.py results/graph_*.pt --results-path results/models/ --config config.json
 
 # Step 3: Evaluate models on the test set
 python scripts/3_test_evaluate.py results/graph_*.pt results/models/ \
-    --results-path results/ --export-fp
+    --results-path results/ --export-fp --config config.json
 
 # Step 4: GNNExplainer attribution & interactive visualizer
 python scripts/4_explainer.py results/graph_*.pt results/explainer/ \
     --summary results/models/training_summary_*.json \
     --fp-csv  results/predictions/*TransformerModel*_FP_*.csv \
-    --model   TransformerModel
+    --model   TransformerModel --config config.json
 ```
 
 ## Configuration
@@ -214,7 +214,22 @@ Create a `config.json` file:
   "test_version": 24.06,
   "as_dataset": "associationByOverallDirect",
   "negative_sampling_approach": "random",
-  "processed_path": "processed_data/"
+  "model_config": {
+    "learning_rate": 0.0005,
+    "hidden_channels": 16,
+    "out_channels": 16,
+    "num_layers": 3,
+    "dropout_rate": 0.5,
+    "num_epochs": 1000,
+    "patience": 10,
+    "batch_size": 1000
+  },
+  "paths": {
+    "processed_path": "data/processed/",
+    "results_path": "results/"
+  },
+  "seed": 42,
+  "device": "auto"
 }
 ```
 ## Models Supported
