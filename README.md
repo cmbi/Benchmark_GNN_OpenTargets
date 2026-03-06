@@ -220,7 +220,7 @@ Create a `config.json` file:
 ## Models Supported
 
 | Architecture | Class name | 
-|---|---|---|
+|---|---|
 | Graph Convolutional Network | `GCNModel` | 
 | GraphSAGE | `SAGEModel` | 
 | TransformerConv | `TransformerModel` |
