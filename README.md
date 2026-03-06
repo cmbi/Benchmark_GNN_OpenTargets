@@ -1,14 +1,14 @@
 # KG-Bench: Benchmarking Graph Neural Networks for Drug Repurposing
 
-This repository accompanies the project "KG-Bench: Benchmarking Graph Neural Network Algorithms for Drug Repurposing". It introduces KG-Bench, a FAIR-compliant benchmarking framework for evaluating Graph Neural Network (GNN) architectures in the context of drug repurposing, using the Open Targets dataset.
+This repository accompanies the paper "KG-Bench: Benchmarking Graph Neural Network Algorithms for Drug Repurposing". It provides a FAIR-compliant benchmarking framework for evaluating GNN architectures on drug–disease association prediction tasks, using knowledge graphs constructed from Open Targets data.
 
-Drug repurposing—finding new therapeutic uses for existing drugs—is a promising strategy to accelerate drug development. KG-Bench presents a systematic approach to evaluate GNN models on drug–disease association prediction tasks using knowledge graphs (KGs) constructed from Open Targets data. The framework addresses key challenges such as:
+Drug repurposing, finding new therapeutic uses for existing drugs, is a promising strategy to accelerate drug development. KG-Bench addresses key challenges including:
 
 + Lack of standardized benchmarks
 + Data leakage between training and test sets
 + Imbalanced learning scenarios due to sparse negative samples
 
-The framework supports retrospective validation using time-stamped versions of the Open Targets dataset, enabling realistic evaluation of model generalization to newly reported drug–disease associations.
+The framework uses time-stamped Open Targets releases (21.06 / 23.06 / 24.06) to create realistic temporal train / validation / test splits, enabling retrospective validation of model generalisation to newly reported drug–disease associations.
 
 ## This GitHub repository provides:
 
@@ -22,24 +22,24 @@ The framework supports retrospective validation using time-stamped versions of t
 
 ```
 drug_disease_prediction/
-├── src/                           # Shared modules
-│   ├── __init__.py               # Package initialization
-│   ├── models.py                 # GNN model definitions (GCN, GraphSAGE, Transformer)
-│   ├── utils.py                  # Utility functions and evaluation metrics
-│   ├── config.py                 # Configuration management
-│   └── data_processing.py        # Data loading & preprocessing
+├── src/                              # Shared modules
+│   ├── __init__.py
+│   ├── models.py                     # GNN model definitions
+│   ├── utils.py                      # Evaluation metrics & helpers
+│   ├── config.py                     # Configuration management
+│   └── data_processing.py            # Data loading & preprocessing
 │
-├── scripts/                      # Main pipeline scripts
-│   ├── 1_create_graph.py         # Knowledge graph construction
-│   ├── 2_train_models.py         # Model training and validation
-│   ├── 3_test_evaluate.py        # Model testing and evaluation
-│   └── 4_explain_predictions.py  # GNN explanation analysis
+├── scripts/                          # Main pipeline scripts
+│   ├── 1_create_graph.py             # Knowledge graph construction
+│   ├── 2_train_models.py             # Model training & validation
+│   ├── 3_test_evaluate.py            # Model testing & evaluation
+│   └── 4_explainer.py                # GNNExplainer attribution & visualizer
 │
-├── processed_data/               # Pre-processed data files
-├── run_pipeline.py               # Main pipeline orchestrator
-├── requirements.txt              # Python dependencies
-├── config.json                   # Configuration file
-└── README.md                     # This file
+├── processed_data/                   # Pre-processed data files
+├── run_pipeline.py                   # Pipeline orchestrator
+├── requirements.txt
+├── config.json                       # Configuration file
+└── README.md
 ```
 
 ## Installation
@@ -49,14 +49,10 @@ drug_disease_prediction/
 git clone <your-repo-url>
 cd drug_disease_prediction
 
-# Create virtual environment
+# Create and activate a virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# On Linux/Mac:
-source venv/bin/activate
-# On Windows:
-venv\Scripts\activate
+source venv/bin/activate          # Linux / macOS
+# venv\Scripts\activate           # Windows
 
 # Install dependencies
 pip install -r requirements.txt
@@ -64,64 +60,51 @@ pip install -r requirements.txt
 
 ## Data Setup
 
-**👥 Most users should choose Option 1** for the quickest setup. Only choose Option 2 if you need to work with raw OpenTargets data or want to understand the full data processing pipeline.
+** Most users should choose Option 1. Only choose Option 2 if you need to work with raw Open Targets data or want to understand the full data processing pipeline.
 
 ---
 
-### 🚀 Option 1: Use Pre-processed Data (Recommended - Quick Start)
-
+### Option 1 — Use Pre-processed Data (Recommended)
 **Best for:** Getting started quickly, running experiments, most research use cases
 
-The repository includes pre-processed data files ready for immediate use. No additional downloads required!
+The repository includes pre-processed data files ready for immediate use. No additional downloads required.
 
-**What you get:**
-- Filtered and cleaned drug, disease, and gene datasets
-- Pre-built knowledge graph edges
-- Ready-to-use training/validation/test splits
-- Mapping files for all entities
 
 **Expected directory structure:**
 ```
 processed_data/
 ├── tables/
-│   ├── processed_molecules.csv     # Filtered drug molecules
-│   ├── processed_indications.csv   # Drug-disease indications
-│   ├── processed_diseases.csv      # Filtered diseases
-│   ├── processed_genes.csv         # Target genes
-│   └── processed_associations.csv  # Gene-disease associations
+│   ├── processed_molecules.csv
+│   ├── processed_indications.csv
+│   ├── processed_diseases.csv
+│   ├── processed_genes.csv
+│   └── processed_associations.csv
 ├── mappings/
-│   ├── drug_key_mapping.json       # Drug ID to node index
-│   ├── drug_type_key_mapping.json  # Drug type mappings
-│   ├── gene_key_mapping.json       # Gene ID mappings
-│   ├── reactome_key_mapping.json   # Pathway mappings
-│   ├── disease_key_mapping.json    # Disease ID mappings
-│   ├── therapeutic_area_key_mapping.json # Therapeutic area mappings
-│   └── mapping_summary.json        # Node count summary
+│   ├── drug_key_mapping.json
+│   ├── drug_type_key_mapping.json
+│   ├── gene_key_mapping.json
+│   ├── reactome_key_mapping.json
+│   ├── disease_key_mapping.json
+│   ├── therapeutic_area_key_mapping.json
+│   └── mapping_summary.json
 └── edges/
-    ├── 1_molecule_drugType_edges.pt   # Drug-DrugType edges
-    ├── 2_molecule_disease_edges.pt    # Drug-Disease edges  
-    ├── 3_molecule_gene_edges.pt       # Drug-Gene edges
-    ├── 4_gene_reactome_edges.pt       # Gene-Pathway edges
-    ├── 5_disease_therapeutic_edges.pt # Disease-TherapeuticArea edges
-    ├── 6_disease_gene_edges.pt        # Disease-Gene edges
-    ├── edge_statistics.json           # Edge count summary
-    └── training_drug_disease_pairs.csv # Training pairs with names
+    ├── 1_molecule_drugType_edges.pt
+    ├── 2_molecule_disease_edges.pt
+    ├── 3_molecule_gene_edges.pt
+    ├── 4_gene_reactome_edges.pt
+    ├── 5_disease_therapeutic_edges.pt
+    ├── 6_disease_gene_edges.pt
+    └── edge_statistics.json
 ```
 
-**✅ You're ready to go!** Skip to the [Usage](#usage) section.
 
 ---
 
-### 🔧 Option 2: Download Raw OpenTargets Data (Advanced)
+### Option 2: Download Raw OpenTargets Data (Advanced)
 
 **Best for:** Custom data processing, understanding the full pipeline, working with different OpenTargets versions
 
-This option requires downloading large datasets from OpenTargets and involves more setup time.
-
-**Requirements:**
-- ~50GB+ free disk space
-- Stable internet connection for large downloads
-- FTP client or command line tools
+Requires ~50 GB free disk space. Visit https://platform.opentargets.org/downloads/ and download the following datasets in Parquet format:
 
 #### Access the Data
 
@@ -203,17 +186,21 @@ python run_pipeline.py
 
 ### Individual Steps
 ```bash
-# Step 1: Create graph from processed data
-python scripts/1_create_graph.py
+# Step 1: Build the knowledge graph
+python scripts/1_create_graph.py --output-dir results/
 
-# Step 2: Train models
-python scripts/2_train_models.py
+# Step 2: Train GNN models
+python scripts/2_train_models.py results/graph_*.pt --results-path results/models/
 
-# Step 3: Evaluate models
-python scripts/3_test_evaluate.py
+# Step 3: Evaluate models on the test set
+python scripts/3_test_evaluate.py results/graph_*.pt results/models/ \
+    --results-path results/ --export-fp
 
-# Step 4: Explain predictions
-python scripts/4_explain_predictions.py
+# Step 4: GNNExplainer attribution & interactive visualizer
+python scripts/4_explainer.py results/graph_*.pt results/explainer/ \
+    --summary results/models/training_summary_*.json \
+    --fp-csv  results/predictions/*TransformerModel*_FP_*.csv \
+    --model   TransformerModel
 ```
 
 ## Configuration
@@ -230,21 +217,41 @@ Create a `config.json` file:
   "processed_path": "processed_data/"
 }
 ```
+## Models Supported
 
-## Models
-
-- **GCN**: Graph Convolutional Network
-- **GraphSAGE**: Sample and Aggregate
-- **Graph Transformer**: Attention-based GNN
+| Architecture | Class name | Notes |
+|---|---|---|
+| Graph Convolutional Network | `GCNModel` | Degree-exploiting baseline |
+| GraphSAGE | `SAGEModel` | Neighbourhood sampling |
+| TransformerConv | `TransformerModel` | Attention-based aggregation |
+| Graph Attention Network | `GATModel` | Multi-head attention |
+| Graph Isomorphism Network | `GINModel` | WL-test expressive power |
+| Relational GCN | `RGCNModel` | Leverages all 6 edge types |
 
 ## Output Files
 
-The pipeline generates various output files during execution:
+| Script | Output | Description |
+|---|---|---|
+| `1_create_graph.py` | `graph_*.pt` | PyG `Data` object with `edge_type` tensor |
+| `1_create_graph.py` | `graph_*_companions.pt` | `pos_edge_index`, `neg_edge_index`, negative pools, temporal split sets |
+| `1_create_graph.py` | `graph_*_names.pt` | Drug / disease name lists and key-mappings |
+| `1_create_graph.py` | `graph_*_analysis.json` | Graph statistics (with `--analyze`) |
+| `2_train_models.py` | `{Model}_best_model_*.pt` | Best model weights (one file per architecture) |
+| `2_train_models.py` | `training_summary_*.json` | Per-model paths, thresholds, validation metrics |
+| `2_train_models.py` | `training_report_*.txt` | Human-readable training report |
+| `2_train_models.py` | `*_training_curves_*.png` | Loss / AUC training curves per model |
+| `3_test_evaluate.py` | `evaluation/test_results_summary_*.csv` | AUC, APR, F1, accuracy with bootstrap CIs |
+| `3_test_evaluate.py` | `evaluation/test_results_detailed_*.json` | Full per-model metrics |
+| `3_test_evaluate.py` | `predictions/{Model}_FP_predictions_*.csv` | False-positive candidates for explainer |
+| `3_test_evaluate.py` | `figures/test_roc_curves_*.png` | ROC curves |
+| `3_test_evaluate.py` | `figures/test_pr_curves_*.png` | Precision–Recall curves |
+| `3_test_evaluate.py` | `figures/interactive_roc_curves_*.html` | Interactive Plotly ROC curves |
+| `4_explainer.py` | `GNNExplainer_importance_{Model}_*.txt` | Bootstrap CI attribution report |
+| `4_explainer.py` | `GNNExplainer_visualization_{Model}_*.html` | Interactive D3.js visualizer (Path + Model modes) |
+| `4_explainer.py` | `GNNExplainer_node_importance_{Model}_*.csv` | Per-node degree-adjusted importance scores |
+| `4_explainer.py` | `GNNExplainer_edge_importance_{Model}_*.csv` | Per-edge importance scores |
 
-- `*_graph.pt` - Graph objects
-- `*_best_model.pt` - Trained models  
-- `test_results_summary.csv` - Performance metrics
-- `test_evaluation_report.txt` - Detailed results
+---
 
 ## License
 
