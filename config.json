@@ -4,39 +4,44 @@
   "test_version": 24.06,
   "as_dataset": "associationByOverallDirect",
   "negative_sampling_approach": "random",
-  
+
   "model_config": {
     "learning_rate": 0.0005,
     "hidden_channels": 16,
     "out_channels": 16,
-    "num_layers": 2,
+    "num_layers": 3,
     "dropout_rate": 0.5,
     "num_epochs": 1000,
     "patience": 10,
     "batch_size": 1000
   },
-  
+
   "explainer_config": {
-    "epochs": 50,
-    "sample_size": 1000,
-    "max_explanations": 1000,
+    "explainer_epochs": 200,
+    "sample_size": 100000,
+    "max_explanations": 50,
+    "top_diseases": 10,
+    "top_drugs_per_disease": 10,
+    "max_path_length": 4,
+    "max_paths_per_pair": 20,
+    "n_bootstrap": 1000,
     "fp_threshold": 0.7,
     "fp_top_k": 10000
   },
-  
+
   "network_config": {
     "disease_similarity_network": false,
     "molecule_similarity_network": false,
     "reactome_network": false,
     "trial_edges": false
   },
-  
+
   "paths": {
     "general_path": "data/raw/",
-    "processed_path": "data/processed/", 
+    "processed_path": "data/processed/",
     "results_path": "results/"
   },
-  
+
   "seed": 42,
   "device": "auto"
 }
