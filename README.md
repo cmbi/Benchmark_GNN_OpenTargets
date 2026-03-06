@@ -221,12 +221,12 @@ Create a `config.json` file:
 
 | Architecture | Class name | Notes |
 |---|---|---|
-| Graph Convolutional Network | `GCNModel` | Degree-exploiting baseline |
-| GraphSAGE | `SAGEModel` | Neighbourhood sampling |
-| TransformerConv | `TransformerModel` | Attention-based aggregation |
-| Graph Attention Network | `GATModel` | Multi-head attention |
-| Graph Isomorphism Network | `GINModel` | WL-test expressive power |
-| Relational GCN | `RGCNModel` | Leverages all 6 edge types |
+| Graph Convolutional Network | `GCNModel` | 
+| GraphSAGE | `SAGEModel` | 
+| TransformerConv | `TransformerModel` |
+| Graph Attention Network | `GATModel` | 
+| Graph Isomorphism Network | `GINModel` |
+| Relational GCN | `RGCNModel` |
 
 ## Output Files
 
